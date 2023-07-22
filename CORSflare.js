@@ -1,9 +1,15 @@
 // ----------------------------------------------------------------------------------
-// CORSflare - v1.0.5
+// CORSflare - v1.0.5 
+// Fork by Wolfr
+//
+// CHANGES
+//
+// Use jsonplaceholder.typicode.com/posts as an example
+// Remove feature to detect for mobile and specific google drive code, I don't need it
+//
 // ref.: https://github.com/Darkseal/CORSflare
 // A lightweight JavaScript CORS Reverse Proxy designed to run in a Cloudflare Worker
 // ----------------------------------------------------------------------------------
-
 
 
 // ----------------------------------------------------------------------------------
@@ -11,20 +17,16 @@
 // ----------------------------------------------------------------------------------
 
 // The hostname of the upstream website to proxy(example: `www.google.com`).
-const upstream = 'www.google.com';
-
-// The hostname of the upstream website to proxy for requests coming from mobile devices(example: `www.google.com`).
-// if the upstream website doesn't have a dedicated hostname for mobile devices, you can set it to NULL.
-const upstream_mobile = null;
+const upstream = 'jsonplaceholder.typicode.com';
 
 // Custom pathname for the upstream website ('/' will work for most scenarios)
-const upstream_path = '/';
+const upstream_path = '/posts';
 
 // Set it to TRUE to allow the default upstream to be overridden with a customizable GET parameter (see `upstream_get_parameter` below), FALSE to prevent that.
 // WARNING: this feature will allow third-parties to replace this proxy's default upstream with an upstream of their choice: activate it only if you know 
 // what you're doing (see ref. below): also, it could be wise to change the default `upstream_get_parameter` with a unique string to reduce the risk of hijacks.
 // ref.: https://github.com/Darkseal/CORSflare/issues/1
-const upstream_allow_override = false;
+const upstream_allow_override = true;
 
 // The GET parameter that can be used to override the default upstream if `upstream_allow_override` is set to TRUE.
 const upstream_get_parameter = 'CORSflare_upstream';
@@ -158,9 +160,6 @@ async function fetchAndApply(request) {
     if (upstream_GET) {
         upstream_domain = upstream_GET;
     }
-    else if (upstream_mobile && await is_mobile_user_agent(user_agent)) {
-        upstream_domain = upstream_mobile;
-    }
     else {
         upstream_domain = upstream;
     }
@@ -246,19 +245,10 @@ async function fetchAndApply(request) {
         if (new_response_headers.get("location")) {
             var location = new_response_headers.get("location");
 
-            // specific behaviour for GDrive-based redirects: see https://github.com/Darkseal/CORSflare/issues/1 for details.
-            if (upstream_allow_override && location.includes("googleusercontent.com")) {
-                var new_upstream = location.substring(8, location.indexOf("/", 8));
-                location = location + "&" + upstream_get_parameter + "=" + new_upstream;
-                new_response_headers.set("location", location
-                    .replace(url.protocol + "//", "https://")
-                    .replace(new_upstream, url_hostname));
-            }
-            else {
-                new_response_headers.set("location", location
-                    .replace(url.protocol + "//", "https://")
-                    .replace(upstream_domain, url_hostname));
-            }
+            new_response_headers.set("location", location
+                .replace(url.protocol + "//", "https://")
+                .replace(upstream_domain, url_hostname));
+           
         }
 
         // Patch "set-cookie" headers by forcefully apply "SameSite=None" and "Secure" directives to allow cross-domain usage
@@ -319,14 +309,4 @@ async function replace_response_text(response, upstream_domain, host_name) {
         }
     }
     return text;
-}
-
-async function is_mobile_user_agent(user_agent_info) {
-    var agents = ["Android", "iPhone", "SymbianOS", "Windows Phone", "iPad", "iPod"];
-    for (var v = 0; v < agents.length; v++) {
-        if (user_agent_info.indexOf(agents[v]) > 0) {
-            return true;
-        }
-    }
-    return false;
 }
